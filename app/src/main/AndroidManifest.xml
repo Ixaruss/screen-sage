@@ -5,7 +5,6 @@
     <!-- Required permissions -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
@@ -30,6 +29,19 @@
             </intent-filter>
         </activity>
 
+        <!-- Process Text Activity for "Ask Screen Sage" in text selection menu -->
+        <activity
+            android:name=".ProcessTextActivity"
+            android:exported="true"
+            android:label="Ask Screen Sage"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <!-- Overlay Service -->
         <service
             android:name=".service.OverlayService"
@@ -37,19 +49,17 @@
             android:exported="false"
             android:foregroundServiceType="specialUse" />
 
-        <!-- Accessibility Service -->
-        <service
-            android:name=".accessibility.ScreenSageAccessibilityService"
-            android:enabled="true"
-            android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+        <!-- Widget -->
+        <receiver
+            android:name=".widget.OverlayToggleWidget"
+            android:exported="true">
             <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
+                android:name="android.appwidget.provider"
+                android:resource="@xml/overlay_toggle_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

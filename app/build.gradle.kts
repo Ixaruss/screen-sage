@@ -79,6 +79,9 @@ dependencies {
     // MediaPipe LLM for local inference (updated to support .task format)
     implementation("com.google.mediapipe:tasks-genai:0.10.27")
     
+    // Coil for image loading
+    implementation("io.coil-kt:coil-compose:2.5.0")
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -86,4 +89,5 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
 }
