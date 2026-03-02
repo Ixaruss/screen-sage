@@ -100,6 +100,18 @@ class PreferencesManager(context: Context) {
         encryptedSharedPreferences.edit().clear().apply()
     }
 
+    suspend fun setBackgroundImage(imageUri: String?) = withContext(Dispatchers.IO) {
+        if (imageUri != null) {
+            encryptedSharedPreferences.edit().putString(KEY_BACKGROUND_IMAGE, imageUri).apply()
+        } else {
+            encryptedSharedPreferences.edit().remove(KEY_BACKGROUND_IMAGE).apply()
+        }
+    }
+
+    suspend fun getBackgroundImage(): String? = withContext(Dispatchers.IO) {
+        encryptedSharedPreferences.getString(KEY_BACKGROUND_IMAGE, null)
+    }
+
     companion object {
         private const val PREFS_NAME = "screen_sage_prefs"
         private const val KEY_API_KEY = "api_key"
@@ -109,6 +121,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_OVERLAY_COLOR = "overlay_color"
         private const val KEY_SYSTEM_PROMPT_PRESET = "system_prompt_preset"
         private const val KEY_CUSTOM_SYSTEM_PROMPT = "custom_system_prompt"
+        private const val KEY_BACKGROUND_IMAGE = "background_image"
 
         const val THEME_DARK = "dark"
         const val THEME_LIGHT = "light"
