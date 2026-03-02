@@ -1,13 +1,16 @@
 package com.example.screensage
 
+import android.R
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -15,20 +18,33 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,6 +55,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -58,21 +77,41 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.OutlinedCard
+import coil.compose.AsyncImage
 import com.example.screensage.preferences.PreferencesManager
 import com.example.screensage.ui.theme.ScreenSageTheme
+import com.example.screensage.ui.theme.SuccessGreen
 import com.example.screensage.utils.PermissionHelper
 import kotlinx.coroutines.launch
 
+
 class MainActivity : ComponentActivity() {
     private lateinit var preferencesManager: PreferencesManager
+    private var shouldOpenSettings = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         preferencesManager = PreferencesManager(this)
         enableEdgeToEdge()
+        
+        // Check if we should open settings directly
+        shouldOpenSettings = intent?.getBooleanExtra("open_settings", false) ?: false
+        
         setContent {
             val coroutineScope = rememberCoroutineScope()
             var themePreference by remember { mutableStateOf("system") }
+            var showSettings by remember { mutableStateOf(shouldOpenSettings) }
+            
+            // Reset the flag after using it
+            LaunchedEffect(shouldOpenSettings) {
+                if (shouldOpenSettings) {
+                    showSettings = true
+                    shouldOpenSettings = false
+                }
+            }
             
             LaunchedEffect(Unit) {
                 coroutineScope.launch {
@@ -87,19 +126,156 @@ class MainActivity : ComponentActivity() {
             }
             
             ScreenSageTheme(darkTheme = darkTheme) {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    SettingsScreen(
-                        preferencesManager = preferencesManager,
-                        onStartService = { startOverlayService() },
-                        onStopService = { stopOverlayService() },
-                        onOpenAccessibilitySettings = { openAccessibilitySettings() },
-                        onThemeChanged = { newTheme ->
-                            themePreference = newTheme
-                        },
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                val pagerState = rememberPagerState(
+                    initialPage = if (showSettings) 3 else 0,
+                    pageCount = { 4 }
+                )
+                
+                LaunchedEffect(pagerState.currentPage) {
+                    // No-op, just observe page changes
+                }
+                
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    bottomBar = {
+                        AdaptiveNavigationBar(preferencesManager = preferencesManager) {
+                            NavigationBarItem(
+                                icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                                label = { Text("Home") },
+                                selected = pagerState.currentPage == 0,
+                                onClick = { 
+                                    if (pagerState.currentPage != 0) {
+                                        coroutineScope.launch { 
+                                            pagerState.animateScrollToPage(
+                                                0,
+                                                animationSpec = androidx.compose.animation.core.tween(durationMillis = 250)
+                                            )
+                                        }
+                                    }
+                                }
+                            )
+                            NavigationBarItem(
+                                icon = { Icon(Icons.Default.DateRange, contentDescription = "History") },
+                                label = { Text("History") },
+                                selected = pagerState.currentPage == 1,
+                                onClick = { 
+                                    if (pagerState.currentPage != 1) {
+                                        coroutineScope.launch { 
+                                            pagerState.animateScrollToPage(
+                                                1,
+                                                animationSpec = androidx.compose.animation.core.tween(durationMillis = 250)
+                                            )
+                                        }
+                                    }
+                                }
+                            )
+                            NavigationBarItem(
+                                icon = { Icon(Icons.Default.Star, contentDescription = "Backgrounds") },
+                                label = { Text("Backgrounds") },
+                                selected = pagerState.currentPage == 2,
+                                onClick = { 
+                                    if (pagerState.currentPage != 2) {
+                                        coroutineScope.launch { 
+                                            pagerState.animateScrollToPage(
+                                                2,
+                                                animationSpec = androidx.compose.animation.core.tween(durationMillis = 250)
+                                            )
+                                        }
+                                    }
+                                }
+                            )
+                            NavigationBarItem(
+                                icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                                label = { Text("Settings") },
+                                selected = pagerState.currentPage == 3,
+                                onClick = { 
+                                    if (pagerState.currentPage != 3) {
+                                        coroutineScope.launch { 
+                                            pagerState.animateScrollToPage(
+                                                3,
+                                                animationSpec = androidx.compose.animation.core.tween(durationMillis = 250)
+                                            )
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                ) { innerPadding ->
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        key = { it }
+                    ) { page ->
+                        when (page) {
+                            0 -> BackgroundWrapper(
+                                preferencesManager = preferencesManager,
+                                modifier = Modifier.padding(innerPadding)
+                            ) {
+                                HomeScreen(
+                                    preferencesManager = preferencesManager,
+                                    onStartService = { startOverlayService() },
+                                    onStopService = { stopOverlayService() },
+                                    onNavigateToSettings = { 
+                                        coroutineScope.launch { pagerState.scrollToPage(3) }
+                                    },
+                                    onNavigateToBackgrounds = { 
+                                        coroutineScope.launch { pagerState.scrollToPage(2) }
+                                    }
+                                )
+                            }
+                            1 -> BackgroundWrapper(
+                                preferencesManager = preferencesManager,
+                                modifier = Modifier.padding(innerPadding)
+                            ) {
+                                HistoryScreen()
+                            }
+                            2 -> BackgroundWrapper(
+                                preferencesManager = preferencesManager,
+                                modifier = Modifier.padding(innerPadding)
+                            ) {
+                                BackgroundsScreen(
+                                    preferencesManager = preferencesManager,
+                                    onBackgroundChanged = {
+                                        // Trigger recomposition by recreating
+                                        recreate()
+                                    }
+                                )
+                            }
+                            3 -> BackgroundWrapper(
+                                preferencesManager = preferencesManager,
+                                modifier = Modifier.padding(innerPadding)
+                            ) {
+                                SettingsScreen(
+                                    preferencesManager = preferencesManager,
+                                    onStartService = { startOverlayService() },
+                                    onStopService = { stopOverlayService() },
+                                    onOpenAccessibilitySettings = { openAccessibilitySettings() },
+                                    onThemeChanged = { newTheme ->
+                                        themePreference = newTheme
+                                    },
+                                    onNavigateToHome = { 
+                                        coroutineScope.launch { pagerState.scrollToPage(0) }
+                                    },
+                                    initialShowSettings = true,
+                                    onShowSettingsChange = {}
+                                )
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+    
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Handle the intent when activity is already running
+        shouldOpenSettings = intent.getBooleanExtra("open_settings", false)
+        if (shouldOpenSettings) {
+            // Trigger recomposition by recreating
+            recreate()
         }
     }
 
@@ -133,7 +309,9 @@ fun SettingsScreen(
     onStopService: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     onThemeChanged: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    onNavigateToHome: () -> Unit = {},
+    initialShowSettings: Boolean = false,
+    onShowSettingsChange: (Boolean) -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var apiKey by remember { mutableStateOf("") }
@@ -143,8 +321,6 @@ fun SettingsScreen(
     var overlayColor by remember { mutableStateOf("") }
     var systemPromptPreset by remember { mutableStateOf("concise") }
     var customSystemPrompt by remember { mutableStateOf("") }
-    var isServiceRunning by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -159,76 +335,41 @@ fun SettingsScreen(
         }
     }
 
-    if (showSettings) {
-        SettingsPanel(
-            apiKey = apiKey,
-            onApiKeyChange = { apiKey = it },
-            theme = theme,
-            onThemeChange = { theme = it },
-            model = model,
-            onModelChange = { model = it },
-            provider = provider,
-            onProviderChange = { provider = it },
-            overlayColor = overlayColor,
-            onOverlayColorChange = { overlayColor = it },
-            systemPromptPreset = systemPromptPreset,
-            onSystemPromptPresetChange = { systemPromptPreset = it },
-            customSystemPrompt = customSystemPrompt,
-            onCustomSystemPromptChange = { customSystemPrompt = it },
-            onSave = {
-                coroutineScope.launch {
-                    preferencesManager.setApiKey(apiKey)
-                    preferencesManager.setTheme(theme)
-                    if (model.isNotEmpty()) {
-                        preferencesManager.setModel(model)
-                    }
-                    preferencesManager.setProvider(provider)
-                    preferencesManager.setOverlayColor(overlayColor)
-                    preferencesManager.setSystemPromptPreset(systemPromptPreset)
-                    preferencesManager.setCustomSystemPrompt(customSystemPrompt)
-                    onThemeChanged(theme)
+    SettingsPanel(
+        apiKey = apiKey,
+        onApiKeyChange = { apiKey = it },
+        theme = theme,
+        onThemeChange = { theme = it },
+        model = model,
+        onModelChange = { model = it },
+        provider = provider,
+        onProviderChange = { provider = it },
+        overlayColor = overlayColor,
+        onOverlayColorChange = { overlayColor = it },
+        systemPromptPreset = systemPromptPreset,
+        onSystemPromptPresetChange = { systemPromptPreset = it },
+        customSystemPrompt = customSystemPrompt,
+        onCustomSystemPromptChange = { customSystemPrompt = it },
+        onSave = {
+            coroutineScope.launch {
+                preferencesManager.setApiKey(apiKey)
+                preferencesManager.setTheme(theme)
+                if (model.isNotEmpty()) {
+                    preferencesManager.setModel(model)
                 }
-            },
-            onStartService = onStartService,
-            onStopService = onStopService,
-            onOpenAccessibilitySettings = onOpenAccessibilitySettings,
-            onClose = { showSettings = false },
-            modifier = modifier
-        )
-    } else {
-        var showPermissionDialog by remember { mutableStateOf(false) }
-        
-        HomeScreen(
-            onSettingsClick = { showSettings = true },
-            onToggleService = {
-                if (isServiceRunning) {
-                    onStopService()
-                    isServiceRunning = false
-                } else {
-                    // Check accessibility permission before starting
-                    if (PermissionHelper.isAccessibilityServiceEnabled(context)) {
-                        onStartService()
-                        isServiceRunning = true
-                    } else {
-                        // Show permission dialog
-                        showPermissionDialog = true
-                    }
-                }
-            },
-            isServiceRunning = isServiceRunning,
-            modifier = modifier
-        )
-        
-        if (showPermissionDialog) {
-            PermissionDialog(
-                onDismiss = { showPermissionDialog = false },
-                onGrantPermission = {
-                    showPermissionDialog = false
-                    onOpenAccessibilitySettings()
-                }
-            )
-        }
-    }
+                preferencesManager.setProvider(provider)
+                preferencesManager.setOverlayColor(overlayColor)
+                preferencesManager.setSystemPromptPreset(systemPromptPreset)
+                preferencesManager.setCustomSystemPrompt(customSystemPrompt)
+                onThemeChanged(theme)
+                onNavigateToHome()
+            }
+        },
+        onStartService = onStartService,
+        onStopService = onStopService,
+        onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+        onClose = { /* No-op since we're using bottom navigation */ }
+    )
 }
 
 @Composable
@@ -392,7 +533,7 @@ fun ChatHistoryItem(
             .fillMaxWidth()
             .clickable { onClick() },
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -496,7 +637,7 @@ fun SettingsPanel(
     
     Surface(
         modifier = modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
+        color = androidx.compose.ui.graphics.Color.Transparent
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Top bar with title and back button
@@ -605,7 +746,7 @@ fun GeneralSettingsContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -622,70 +763,44 @@ fun GeneralSettingsContent(
                         supportingText = { Text("Enter your AI provider API key", style = MaterialTheme.typography.bodySmall) }
                     )
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
                 
-                // Provider dropdown
-                var providerExpanded by remember { mutableStateOf(false) }
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = provider.replaceFirstChar { it.uppercase() },
-                        onValueChange = {},
-                        label = { Text("AI Provider") },
-                        modifier = Modifier.fillMaxWidth(),
-                        readOnly = true,
-                        trailingIcon = {
-                            IconButton(onClick = { providerExpanded = !providerExpanded }) {
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowDropDown,
-                                    contentDescription = "Provider dropdown"
-                                )
-                            }
-                        }
-                    )
-                    DropdownMenu(
-                        expanded = providerExpanded,
-                        onDismissRequest = { providerExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Gemini") },
-                            onClick = {
-                                onProviderChange("gemini")
-                                onModelChange("")
-                                providerExpanded = false
-                            }
+                // Provider radio button group
+                com.example.screensage.ui.components.RadioButtonGroup(
+                    title = "AI Provider",
+                    options = listOf(
+                        com.example.screensage.ui.components.RadioOption(
+                            value = "gemini",
+                            label = "Gemini",
+                            description = "Google's AI model with fast responses"
+                        ),
+                        com.example.screensage.ui.components.RadioOption(
+                            value = "chatgpt",
+                            label = "ChatGPT",
+                            description = "OpenAI's conversational AI"
+                        ),
+                        com.example.screensage.ui.components.RadioOption(
+                            value = "claude",
+                            label = "Claude",
+                            description = "Anthropic's helpful AI assistant"
+                        ),
+                        com.example.screensage.ui.components.RadioOption(
+                            value = "local",
+                            label = "Local (On-Device)",
+                            description = "Privacy-focused offline model"
                         )
-                        DropdownMenuItem(
-                            text = { Text("ChatGPT") },
-                            onClick = {
-                                onProviderChange("chatgpt")
-                                onModelChange("")
-                                providerExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Claude") },
-                            onClick = {
-                                onProviderChange("claude")
-                                onModelChange("")
-                                providerExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Local (On-Device)") },
-                            onClick = {
-                                onProviderChange("local")
-                                onModelChange("")
-                                providerExpanded = false
-                            }
-                        )
+                    ),
+                    selectedOption = provider,
+                    onOptionSelected = { newProvider ->
+                        onProviderChange(newProvider)
+                        onModelChange("")
                     }
-                }
+                )
                 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
-                // Model dropdown
-                var modelExpanded by remember { mutableStateOf(false) }
+                // Model selection based on provider
                 val availableModels = when (provider.lowercase()) {
                     "gemini" -> listOf(
                         "gemini-3-flash-preview",
@@ -707,12 +822,12 @@ fun GeneralSettingsContent(
                         "claude-3-sonnet-20240229",
                         "claude-3-haiku-20240307"
                     )
-                    "local" -> listOf("Gemma 2B (On-Device)")
-                    else -> listOf()
+                    else -> emptyList()
                 }
                 
                 // Show model dropdown only for non-local providers
                 if (provider.lowercase() != "local") {
+                    var modelExpanded by remember { mutableStateOf(false) }
                     Box(modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
                             value = model.ifEmpty { availableModels.firstOrNull() ?: "" },
@@ -902,48 +1017,120 @@ fun GeneralSettingsContent(
         Spacer(modifier = Modifier.height(24.dp))
         
         // Permissions Section
+        val context = androidx.compose.ui.platform.LocalContext.current
+        var hasOverlayPermission by remember { mutableStateOf(PermissionHelper.hasOverlayPermission(context)) }
+        
+        LaunchedEffect(Unit) {
+            // Refresh permission status periodically
+            while (true) {
+                kotlinx.coroutines.delay(1000)
+                hasOverlayPermission = PermissionHelper.hasOverlayPermission(context)
+            }
+        }
+        
         SettingsSectionHeader(title = "Permissions")
         Spacer(modifier = Modifier.height(12.dp))
         
+        // Overlay Permission Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Accessibility Service",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Required to detect text selections across all apps",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = onOpenAccessibilitySettings,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Enable Accessibility Service")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Overlay Permission",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Required to display chat overlay on screen",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (hasOverlayPermission) "✓ Granted" else "✗ Not Granted",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (hasOverlayPermission) 
+                                MaterialTheme.colorScheme.primary 
+                            else 
+                                MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                if (!hasOverlayPermission) {
+                    Button(
+                        onClick = { PermissionHelper.requestOverlayPermission(context) }
+                    ) {
+                        Text("Enable")
+                    }
                 }
             }
         }
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // Save button
-        Button(
-            onClick = onSave,
+        // Widget Section
+        SettingsSectionHeader(title = "Home Screen Widget")
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp)
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+            ),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Save Settings")
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Quick Access Widget",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Add a widget to your home screen for quick access to Screen Sage",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        com.example.screensage.utils.WidgetHelper.requestPinWidget(context)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Add Widget to Home Screen")
+                }
+            }
         }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // Animated Save button
+        com.example.screensage.ui.components.AnimatedSaveButton(
+            onClick = {
+                onSave()
+            }
+        )
         
         Spacer(modifier = Modifier.height(16.dp))
     }
@@ -975,55 +1162,22 @@ fun AppearanceSettingsContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                var themeExpanded by remember { mutableStateOf(false) }
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = theme.replaceFirstChar { it.uppercase() },
-                        onValueChange = {},
-                        label = { Text("App Theme") },
-                        modifier = Modifier.fillMaxWidth(),
-                        readOnly = true,
-                        trailingIcon = {
-                            IconButton(onClick = { themeExpanded = !themeExpanded }) {
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowDropDown,
-                                    contentDescription = "Theme dropdown"
-                                )
-                            }
-                        }
-                    )
-                    DropdownMenu(
-                        expanded = themeExpanded,
-                        onDismissRequest = { themeExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("System") },
-                            onClick = {
-                                onThemeChange("system")
-                                themeExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Dark") },
-                            onClick = {
-                                onThemeChange("dark")
-                                themeExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Light") },
-                            onClick = {
-                                onThemeChange("light")
-                                themeExpanded = false
-                            }
-                        )
-                    }
-                }
+                Text(
+                    text = "App Theme",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                com.example.screensage.ui.components.SegmentedButtonGroup(
+                    options = listOf("Light", "Dark", "System"),
+                    selectedOption = theme,
+                    onOptionSelected = onThemeChange
+                )
             }
         }
         
@@ -1036,63 +1190,28 @@ fun AppearanceSettingsContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                var colorExpanded by remember { mutableStateOf(false) }
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = overlayColor.replaceFirstChar { it.uppercase() },
-                        onValueChange = {},
-                        label = { Text("Overlay Color") },
-                        modifier = Modifier.fillMaxWidth(),
-                        readOnly = true,
-                        supportingText = { Text("Color theme for the chat overlay", style = MaterialTheme.typography.bodySmall) },
-                        trailingIcon = {
-                            IconButton(onClick = { colorExpanded = !colorExpanded }) {
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowDropDown,
-                                    contentDescription = "Color dropdown"
-                                )
-                            }
-                        }
-                    )
-                    DropdownMenu(
-                        expanded = colorExpanded,
-                        onDismissRequest = { colorExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Pink") },
-                            onClick = {
-                                onOverlayColorChange("pink")
-                                colorExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Blue") },
-                            onClick = {
-                                onOverlayColorChange("blue")
-                                colorExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Purple") },
-                            onClick = {
-                                onOverlayColorChange("purple")
-                                colorExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Green") },
-                            onClick = {
-                                onOverlayColorChange("green")
-                                colorExpanded = false
-                            }
-                        )
-                    }
-                }
+                Text(
+                    text = "Overlay Color",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                com.example.screensage.ui.components.SegmentedButtonGroup(
+                    options = listOf("Pink", "Blue", "Purple", "Green"),
+                    selectedOption = overlayColor,
+                    onOptionSelected = onOverlayColorChange
+                )
+                Text(
+                    text = "Color theme for the chat overlay",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
         }
         
@@ -1105,7 +1224,7 @@ fun AppearanceSettingsContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -1121,131 +1240,49 @@ fun AppearanceSettingsContent(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
-                var presetExpanded by remember { mutableStateOf(false) }
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = systemPromptPreset.replaceFirstChar { it.uppercase() },
-                        onValueChange = {},
-                        label = { Text("Response Preset") },
-                        modifier = Modifier.fillMaxWidth(),
-                        readOnly = true,
-                        trailingIcon = {
-                            IconButton(onClick = { presetExpanded = !presetExpanded }) {
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowDropDown,
-                                    contentDescription = "Preset dropdown"
-                                )
-                            }
-                        }
-                    )
-                    DropdownMenu(
-                        expanded = presetExpanded,
-                        onDismissRequest = { presetExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { 
-                                Column {
-                                    Text("Concise")
-                                    Text(
-                                        "Brief, to-the-point explanations",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                            },
-                            onClick = {
-                                onSystemPromptPresetChange("concise")
-                                presetExpanded = false
-                            }
+                com.example.screensage.ui.components.RadioButtonGroup(
+                    title = "Response Preset",
+                    options = listOf(
+                        com.example.screensage.ui.components.RadioOption(
+                            value = "concise",
+                            label = "Concise",
+                            description = "Brief, to-the-point explanations"
+                        ),
+                        com.example.screensage.ui.components.RadioOption(
+                            value = "detailed",
+                            label = "Detailed",
+                            description = "Comprehensive, thorough explanations"
+                        ),
+                        com.example.screensage.ui.components.RadioOption(
+                            value = "simple",
+                            label = "Simple",
+                            description = "Easy-to-understand, beginner-friendly"
+                        ),
+                        com.example.screensage.ui.components.RadioOption(
+                            value = "technical",
+                            label = "Technical",
+                            description = "Advanced, technical terminology"
+                        ),
+                        com.example.screensage.ui.components.RadioOption(
+                            value = "creative",
+                            label = "Creative",
+                            description = "Engaging, conversational tone"
+                        ),
+                        com.example.screensage.ui.components.RadioOption(
+                            value = "custom",
+                            label = "Custom",
+                            description = "Define your own prompt"
                         )
-                        DropdownMenuItem(
-                            text = { 
-                                Column {
-                                    Text("Detailed")
-                                    Text(
-                                        "Comprehensive, thorough explanations",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                            },
-                            onClick = {
-                                onSystemPromptPresetChange("detailed")
-                                presetExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { 
-                                Column {
-                                    Text("Simple")
-                                    Text(
-                                        "Easy-to-understand, beginner-friendly",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                            },
-                            onClick = {
-                                onSystemPromptPresetChange("simple")
-                                presetExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { 
-                                Column {
-                                    Text("Technical")
-                                    Text(
-                                        "Advanced, technical terminology",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                            },
-                            onClick = {
-                                onSystemPromptPresetChange("technical")
-                                presetExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { 
-                                Column {
-                                    Text("Creative")
-                                    Text(
-                                        "Engaging, conversational tone",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                            },
-                            onClick = {
-                                onSystemPromptPresetChange("creative")
-                                presetExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { 
-                                Column {
-                                    Text("Custom")
-                                    Text(
-                                        "Define your own prompt",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                            },
-                            onClick = {
-                                onSystemPromptPresetChange("custom")
-                                presetExpanded = false
-                            }
-                        )
-                    }
-                }
+                    ),
+                    selectedOption = systemPromptPreset,
+                    onOptionSelected = onSystemPromptPresetChange
+                )
                 
                 // Show custom prompt input when "custom" is selected
                 if (systemPromptPreset.lowercase() == "custom") {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = customSystemPrompt,
                         onValueChange = onCustomSystemPromptChange,
@@ -1266,14 +1303,12 @@ fun AppearanceSettingsContent(
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // Save button
-        Button(
-            onClick = onSave,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text("Save Settings")
-        }
+        // Animated Save button
+        com.example.screensage.ui.components.AnimatedSaveButton(
+            onClick = {
+                onSave()
+            }
+        )
         
         Spacer(modifier = Modifier.height(16.dp))
     }
@@ -1286,5 +1321,992 @@ fun SettingsSectionHeader(title: String) {
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 4.dp)
+    )
+}
+
+@Composable
+fun FeatureItem(text: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(
+            imageVector = Icons.Default.Check,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+    }
+}
+
+@Composable
+fun PermissionCard(
+    title: String,
+    description: String,
+    isGranted: Boolean,
+    onEnable: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                    )
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
+            
+            if (isGranted) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Granted",
+                    tint = SuccessGreen,
+                    modifier = Modifier.size(24.dp)
+                )
+            } else {
+                IconButton(onClick = onEnable) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = "Enable",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun HomeScreen(
+    preferencesManager: PreferencesManager,
+    onStartService: () -> Unit,
+    onStopService: () -> Unit,
+    onNavigateToSettings: () -> Unit = {},
+    onNavigateToBackgrounds: () -> Unit = {}
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var isServiceRunning by remember { mutableStateOf(false) }
+    var provider by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var showPermissionDialog by remember { mutableStateOf(false) }
+    var hasOverlayPermission by remember { mutableStateOf(false) }
+    
+    // Function to check if service is running
+    fun isOverlayServiceRunning(): Boolean {
+        val manager = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        @Suppress("DEPRECATION")
+        for (service in manager.getRunningServices(Integer.MAX_VALUE)) {
+            if (com.example.screensage.service.OverlayService::class.java.name == service.service.className) {
+                return true
+            }
+        }
+        return false
+    }
+    
+    LaunchedEffect(Unit) {
+        coroutineScope.launch {
+            provider = preferencesManager.getProvider()
+            val savedModel = preferencesManager.getModel()
+            model = if (savedModel.isNullOrEmpty()) {
+                // Get default model based on provider
+                when (provider.lowercase()) {
+                    "gemini" -> "gemini-1.5-flash"
+                    "chatgpt" -> "gpt-4o-mini"
+                    "claude" -> "claude-3-5-haiku-20241022"
+                    "local" -> "Gemma 2B"
+                    else -> "Not configured"
+                }
+            } else {
+                savedModel
+            }
+            hasOverlayPermission = PermissionHelper.hasOverlayPermission(context)
+            isServiceRunning = isOverlayServiceRunning()
+        }
+    }
+    
+    // Periodically check service status
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(1000) // Check every second
+            isServiceRunning = isOverlayServiceRunning()
+        }
+    }
+    
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Top right buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        com.example.screensage.utils.WidgetHelper.requestPinWidget(context)
+                    },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add Widget")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(
+                    onClick = onNavigateToBackgrounds
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Background",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Title
+            Text(
+                text = "Screen Sage",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+            )
+
+            // Subtitle
+            Text(
+                text = "Your Agentic AI Research Partner",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Works Offline Badge - Always visible
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                ),
+                shape = RoundedCornerShape(20.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "WORKS OFFLINE",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Large Circular Power Button
+            Box(
+                modifier = Modifier
+                    .size(200.dp)
+                    .clickable {
+                        if (isServiceRunning) {
+                            onStopService()
+                        } else {
+                            // Just start the service - no accessibility check needed
+                            onStartService()
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                // Outer circle
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 8.dp
+                ) {}
+
+                // Inner circle
+                Surface(
+                    modifier = Modifier.size(160.dp),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = if (isServiceRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(
+                                id = context.resources.getIdentifier(
+                                    "logo_bg_removed",
+                                    "drawable",
+                                    context.packageName
+                                )
+                            ),
+                            contentDescription = "Power",
+                            modifier = Modifier.size(128.dp),
+                            colorFilter = if (isServiceRunning)
+                                androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onPrimary)
+                            else
+                                androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Status indicator
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            if (isServiceRunning) SuccessGreen else MaterialTheme.colorScheme.onBackground.copy(
+                                alpha = 0.3f
+                            ),
+                            shape = androidx.compose.foundation.shape.CircleShape
+                        )
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isServiceRunning) "ACTIVE" else "INACTIVE",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (isServiceRunning) SuccessGreen else MaterialTheme.colorScheme.onBackground.copy(
+                        alpha = 0.6f
+                    ),
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = if (isServiceRunning)
+                    ""
+                else
+                    "Tap the button above to activate Screen Sage",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Features list
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                FeatureItem("Summarize long paragraphs instantly")
+                FeatureItem("Answer complex research queries")
+                FeatureItem("Extract data from tables & charts")
+                FeatureItem("Works offline via local models")
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text (
+            text =
+                "Your data stays private. No data is sent to the cloud; all processing\nand storage happens locally on your device.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // Permissions Section
+        Text(
+            text = "PERMISSIONS REQUIRED",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+        )
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // Permission Card - Only Overlay
+        PermissionCard(
+            title = "Display over other apps",
+            description = "Required for the overlay chat assistant",
+            isGranted = hasOverlayPermission,
+            onEnable = { PermissionHelper.requestOverlayPermission(context) }
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // Current Configuration
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onNavigateToSettings() },
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "CURRENT CONFIGURATION",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = "Go to settings",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "AI MODEL",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = model.ifEmpty { "Not configured" },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                            )
+                        }
+                    }
+                    
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "PROVIDER",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = provider.replaceFirstChar { it.uppercase() },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+
+        
+        Spacer(modifier = Modifier.height(96.dp))
+        
+        // Quote of the Day
+        QuoteOfTheDay()
+        
+
+        }
+    }
+    
+    if (showPermissionDialog) {
+        PermissionDialog(
+            onDismiss = { showPermissionDialog = false },
+            onGrantPermission = {
+                showPermissionDialog = false
+                val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                context.startActivity(intent)
+            }
+        )
+    }
+}
+
+data class Quote(
+    val q: String,
+    val a: String
+)
+
+@Composable
+fun QuoteOfTheDay() {
+    var quote by remember { mutableStateOf<Quote?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    val coroutineScope = rememberCoroutineScope()
+    
+    LaunchedEffect(Unit) {
+        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val url = java.net.URL("https://zenquotes.io/api/today")
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                
+                // Parse JSON manually (simple parsing)
+                val jsonArray = response.trim().removePrefix("[").removeSuffix("]")
+                val qMatch = Regex("\"q\":\"([^\"]+)\"").find(jsonArray)
+                val aMatch = Regex("\"a\":\"([^\"]+)\"").find(jsonArray)
+                
+                if (qMatch != null && aMatch != null) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        quote = Quote(qMatch.groupValues[1], aMatch.groupValues[1])
+                        isLoading = false
+                    }
+                }
+            } catch (e: Exception) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    isLoading = false
+                }
+            }
+        }
+    }
+    
+    if (!isLoading && quote != null) {
+        Text(
+            text = "\"${quote!!.q}\" — ${quote!!.a}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+        )
+    }
+}
+
+@Composable
+fun HistoryScreen() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val chatHistoryManager = remember { com.example.screensage.storage.ChatHistoryManager(context) }
+    var chatSessions by remember { mutableStateOf<List<com.example.screensage.models.ChatSession>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
+    
+    LaunchedEffect(Unit) {
+        coroutineScope.launch {
+            chatSessions = chatHistoryManager.getAllSessions()
+        }
+    }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Chat History",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        if (chatSessions.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "No chat history yet",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Start a conversation to see it here",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                    )
+                }
+            }
+        } else {
+            androidx.compose.foundation.lazy.LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(chatSessions.size) { index ->
+                    val session = chatSessions[index]
+                    ChatHistoryItem(
+                        session = session,
+                        onDelete = {
+                            coroutineScope.launch {
+                                chatHistoryManager.deleteSession(session.id)
+                                chatSessions = chatHistoryManager.getAllSessions()
+                            }
+                        },
+                        onClick = {
+                            // Check if service is running
+                            val manager = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                            @Suppress("DEPRECATION")
+                            val isServiceRunning = manager.getRunningServices(Integer.MAX_VALUE).any {
+                                it.service.className == com.example.screensage.service.OverlayService::class.java.name
+                            }
+                            
+                            // Start service if not running
+                            if (!isServiceRunning) {
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                    context.startForegroundService(android.content.Intent(context, com.example.screensage.service.OverlayService::class.java))
+                                } else {
+                                    context.startService(android.content.Intent(context, com.example.screensage.service.OverlayService::class.java))
+                                }
+                                // Wait a bit for service to start
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(500)
+                                    // Restore the chat session in the overlay
+                                    val intent = android.content.Intent(com.example.screensage.service.OverlayService.ACTION_RESTORE_SESSION)
+                                    intent.putExtra(com.example.screensage.service.OverlayService.EXTRA_SESSION_ID, session.id)
+                                    androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
+                                }
+                            } else {
+                                // Restore the chat session in the overlay
+                                val intent = android.content.Intent(com.example.screensage.service.OverlayService.ACTION_RESTORE_SESSION)
+                                intent.putExtra(com.example.screensage.service.OverlayService.EXTRA_SESSION_ID, session.id)
+                                androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BackgroundsScreen(
+    preferencesManager: PreferencesManager,
+    onBackgroundChanged: () -> Unit = {}
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var currentBackground by remember { mutableStateOf<String?>(null) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var pendingBackground by remember { mutableStateOf<String?>(null) }
+    
+    // Preset wallpapers list - add your wallpaper resource names here
+    val presetWallpapers = listOf(
+        "alexander",
+        "black_red_gradient",
+        "francesco_ungaro",
+        "koyeldye",
+        "no",
+        "plane_sunset",
+        "ss",
+        "tchebotarev"
+    )
+    
+    LaunchedEffect(Unit) {
+        coroutineScope.launch {
+            currentBackground = preferencesManager.getBackgroundImage()
+        }
+    }
+    
+    // Image picker launcher
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        uri?.let {
+            pendingBackground = it.toString()
+            showConfirmDialog = true
+        }
+    }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Backgrounds",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        Text(
+            text = "Choose a background for Home and History screens",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        // Current selection
+        if (currentBackground != null) {
+            Text(
+                text = "Current: ${if (currentBackground!!.startsWith("content://")) "Custom Image" else "Preset"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
+        
+        // Preset wallpapers grid
+        Text(
+            text = "Preset Wallpapers",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            items(presetWallpapers.size) { index ->
+                val wallpaper = presetWallpapers[index]
+                val resourceId = context.resources.getIdentifier(
+                    wallpaper,
+                    "drawable",
+                    context.packageName
+                )
+                
+                Card(
+                    modifier = Modifier
+                        .aspectRatio(0.75f)
+                        .clickable {
+                            val resourceUri = "android.resource://${context.packageName}/$resourceId"
+                            pendingBackground = resourceUri
+                            showConfirmDialog = true
+                        },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (currentBackground == "android.resource://${context.packageName}/$resourceId") 
+                            MaterialTheme.colorScheme.primaryContainer 
+                        else 
+                            MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (resourceId != 0) {
+                            androidx.compose.foundation.Image(
+                                painter = androidx.compose.ui.res.painterResource(resourceId),
+                                contentDescription = "Wallpaper $wallpaper",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Image not found",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                        
+                        if (currentBackground == "android.resource://${context.packageName}/$resourceId") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Custom image section
+        Text(
+            text = "Custom Image",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+        )
+        
+        AdaptiveButton(
+            onClick = { imagePickerLauncher.launch("image/*") },
+            modifier = Modifier.fillMaxWidth(),
+            preferencesManager = preferencesManager
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Choose Custom Image")
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Clear background option
+        AdaptiveButton(
+            onClick = {
+                pendingBackground = null
+                showConfirmDialog = true
+            },
+            modifier = Modifier.fillMaxWidth(),
+            preferencesManager = preferencesManager
+        ) {
+            Text("Clear Background")
+        }
+    }
+    
+    // Confirmation Dialog
+    if (showConfirmDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { 
+                showConfirmDialog = false
+                pendingBackground = null
+            },
+            title = { Text("Change Background") },
+            text = { 
+                Text(
+                    if (pendingBackground == null) 
+                        "Are you sure you want to clear the background?" 
+                    else 
+                        "Apply this background? The app will refresh to show the new background."
+                ) 
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            preferencesManager.setBackgroundImage(pendingBackground)
+                            currentBackground = pendingBackground
+                            showConfirmDialog = false
+                            pendingBackground = null
+                            // Trigger refresh
+                            onBackgroundChanged()
+                        }
+                    }
+                ) {
+                    Text("Apply")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showConfirmDialog = false
+                        pendingBackground = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun BackgroundWrapper(
+    preferencesManager: PreferencesManager,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val backgroundImage = remember {
+        // Load once and cache
+        kotlinx.coroutines.runBlocking {
+            preferencesManager.getBackgroundImage()
+        }
+    }
+    
+    Box(modifier = modifier) {
+        // Background image
+        backgroundImage?.let { imageUri ->
+            if (imageUri.startsWith("android.resource://")) {
+                // Preset wallpaper
+                val resourceId = imageUri.substringAfterLast("/").toIntOrNull()
+                if (resourceId != null && resourceId != 0) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(resourceId),
+                        contentDescription = "Background",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                }
+            } else {
+                // Custom image from URI - Coil will cache this
+                AsyncImage(
+                    model = coil.request.ImageRequest.Builder(context)
+                        .data(imageUri)
+                        .memoryCacheKey(imageUri)
+                        .diskCacheKey(imageUri)
+                        .build(),
+                    contentDescription = "Background",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            }
+            
+            // Semi-transparent overlay for readability
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.50f))
+            )
+        }
+        
+        // Content
+        content()
+    }
+}
+
+@Composable
+fun GlassButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit
+) {
+    // Glass button using available Backdrop API
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        ),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 12.dp,
+            pressedElevation = 16.dp,
+            disabledElevation = 0.dp
+        ),
+        shape = RoundedCornerShape(28.dp),
+        content = content
+    )
+}
+
+@Composable
+fun AdaptiveButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    preferencesManager: PreferencesManager,
+    content: @Composable RowScope.() -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        content = content
+    )
+}
+
+@Composable
+fun AdaptiveNavigationBar(
+    preferencesManager: PreferencesManager,
+    content: @Composable RowScope.() -> Unit
+) {
+    androidx.compose.material3.NavigationBar(
+        modifier = Modifier
+            .height(85.dp)
+            .fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 3.dp,
+        content = content
+    )
+}
+
+@Composable
+fun AdaptiveCard(
+    modifier: Modifier = Modifier,
+    preferencesManager: PreferencesManager,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+        ),
+        shape = RoundedCornerShape(12.dp),
+        content = { content() }
     )
 }
