@@ -1,86 +1,179 @@
 package com.example.screensage.preferences
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class PreferencesManager(context: Context) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+class PreferencesManager(private val context: Context) {
+    private val sharedPreferences: SharedPreferences by lazy {
+        try {
+            // Try to create encrypted preferences
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
 
-    private val encryptedSharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        PREFS_NAME,
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+            EncryptedSharedPreferences.create(
+                context,
+                PREFS_NAME,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            // Fallback to regular SharedPreferences if encryption fails
+            Log.e("PreferencesManager", "Failed to create encrypted preferences, using regular SharedPreferences", e)
+            
+            // Try to delete corrupted encrypted preferences
+            try {
+                context.deleteSharedPreferences(PREFS_NAME)
+            } catch (deleteException: Exception) {
+                Log.e("PreferencesManager", "Failed to delete corrupted preferences", deleteException)
+            }
+            
+            // Return regular SharedPreferences as fallback
+            context.getSharedPreferences(PREFS_NAME_FALLBACK, Context.MODE_PRIVATE)
+        }
+    }
 
     suspend fun getApiKey(): String? = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.getString(KEY_API_KEY, null)
+        try {
+            sharedPreferences.getString(KEY_API_KEY, null)
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error reading API key", e)
+            null
+        }
     }
 
     suspend fun setApiKey(key: String) = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.edit().putString(KEY_API_KEY, key).apply()
+        try {
+            sharedPreferences.edit().putString(KEY_API_KEY, key).apply()
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error saving API key", e)
+        }
     }
 
     suspend fun getTheme(): String = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.getString(KEY_THEME, THEME_SYSTEM) ?: THEME_SYSTEM
+        try {
+            sharedPreferences.getString(KEY_THEME, THEME_SYSTEM) ?: THEME_SYSTEM
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error reading theme", e)
+            THEME_SYSTEM
+        }
     }
 
     suspend fun setTheme(theme: String) = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.edit().putString(KEY_THEME, theme).apply()
+        try {
+            sharedPreferences.edit().putString(KEY_THEME, theme).apply()
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error saving theme", e)
+        }
     }
 
     suspend fun getModel(): String? = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.getString(KEY_MODEL, null)
+        try {
+            sharedPreferences.getString(KEY_MODEL, null)
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error reading model", e)
+            null
+        }
     }
 
     suspend fun setModel(model: String) = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.edit().putString(KEY_MODEL, model).apply()
+        try {
+            sharedPreferences.edit().putString(KEY_MODEL, model).apply()
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error saving model", e)
+        }
     }
 
     suspend fun getProvider(): String = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.getString(KEY_PROVIDER, PROVIDER_GEMINI) ?: PROVIDER_GEMINI
+        try {
+            sharedPreferences.getString(KEY_PROVIDER, PROVIDER_GEMINI) ?: PROVIDER_GEMINI
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error reading provider", e)
+            PROVIDER_GEMINI
+        }
     }
 
     suspend fun setProvider(provider: String) = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.edit().putString(KEY_PROVIDER, provider).apply()
+        try {
+            sharedPreferences.edit().putString(KEY_PROVIDER, provider).apply()
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error saving provider", e)
+        }
     }
 
     fun getProviderSync(): String {
-        return encryptedSharedPreferences.getString(KEY_PROVIDER, PROVIDER_GEMINI) ?: PROVIDER_GEMINI
+        return try {
+            sharedPreferences.getString(KEY_PROVIDER, PROVIDER_GEMINI) ?: PROVIDER_GEMINI
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error reading provider sync", e)
+            PROVIDER_GEMINI
+        }
     }
 
     suspend fun getOverlayColor(): String = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.getString(KEY_OVERLAY_COLOR, COLOR_PINK) ?: COLOR_PINK
+        try {
+            sharedPreferences.getString(KEY_OVERLAY_COLOR, COLOR_PINK) ?: COLOR_PINK
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error reading overlay color", e)
+            COLOR_PINK
+        }
     }
 
     fun getOverlayColorSync(): String {
-        return encryptedSharedPreferences.getString(KEY_OVERLAY_COLOR, COLOR_PINK) ?: COLOR_PINK
+        return try {
+            sharedPreferences.getString(KEY_OVERLAY_COLOR, COLOR_PINK) ?: COLOR_PINK
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error reading overlay color sync", e)
+            COLOR_PINK
+        }
     }
 
     suspend fun setOverlayColor(color: String) = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.edit().putString(KEY_OVERLAY_COLOR, color).apply()
+        try {
+            sharedPreferences.edit().putString(KEY_OVERLAY_COLOR, color).apply()
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error saving overlay color", e)
+        }
     }
 
     suspend fun getSystemPromptPreset(): String = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.getString(KEY_SYSTEM_PROMPT_PRESET, PRESET_CONCISE) ?: PRESET_CONCISE
+        try {
+            sharedPreferences.getString(KEY_SYSTEM_PROMPT_PRESET, PRESET_CONCISE) ?: PRESET_CONCISE
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error reading system prompt preset", e)
+            PRESET_CONCISE
+        }
     }
 
     suspend fun setSystemPromptPreset(preset: String) = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.edit().putString(KEY_SYSTEM_PROMPT_PRESET, preset).apply()
+        try {
+            sharedPreferences.edit().putString(KEY_SYSTEM_PROMPT_PRESET, preset).apply()
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error saving system prompt preset", e)
+        }
     }
 
     suspend fun getCustomSystemPrompt(): String = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.getString(KEY_CUSTOM_SYSTEM_PROMPT, "") ?: ""
+        try {
+            sharedPreferences.getString(KEY_CUSTOM_SYSTEM_PROMPT, "") ?: ""
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error reading custom system prompt", e)
+            ""
+        }
     }
 
     suspend fun setCustomSystemPrompt(prompt: String) = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.edit().putString(KEY_CUSTOM_SYSTEM_PROMPT, prompt).apply()
+        try {
+            sharedPreferences.edit().putString(KEY_CUSTOM_SYSTEM_PROMPT, prompt).apply()
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error saving custom system prompt", e)
+        }
     }
 
     suspend fun getSystemPrompt(): String = withContext(Dispatchers.IO) {
@@ -97,23 +190,37 @@ class PreferencesManager(context: Context) {
     }
 
     suspend fun clearAllData() = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.edit().clear().apply()
+        try {
+            sharedPreferences.edit().clear().apply()
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error clearing data", e)
+        }
     }
 
     suspend fun setBackgroundImage(imageUri: String?) = withContext(Dispatchers.IO) {
-        if (imageUri != null) {
-            encryptedSharedPreferences.edit().putString(KEY_BACKGROUND_IMAGE, imageUri).apply()
-        } else {
-            encryptedSharedPreferences.edit().remove(KEY_BACKGROUND_IMAGE).apply()
+        try {
+            if (imageUri != null) {
+                sharedPreferences.edit().putString(KEY_BACKGROUND_IMAGE, imageUri).apply()
+            } else {
+                sharedPreferences.edit().remove(KEY_BACKGROUND_IMAGE).apply()
+            }
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error saving background image", e)
         }
     }
 
     suspend fun getBackgroundImage(): String? = withContext(Dispatchers.IO) {
-        encryptedSharedPreferences.getString(KEY_BACKGROUND_IMAGE, null)
+        try {
+            sharedPreferences.getString(KEY_BACKGROUND_IMAGE, null)
+        } catch (e: Exception) {
+            Log.e("PreferencesManager", "Error reading background image", e)
+            null
+        }
     }
 
     companion object {
         private const val PREFS_NAME = "screen_sage_prefs"
+        private const val PREFS_NAME_FALLBACK = "screen_sage_prefs_fallback"
         private const val KEY_API_KEY = "api_key"
         private const val KEY_THEME = "theme"
         private const val KEY_MODEL = "model"
