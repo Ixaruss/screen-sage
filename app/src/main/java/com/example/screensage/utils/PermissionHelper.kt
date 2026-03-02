@@ -24,20 +24,6 @@ object PermissionHelper {
         context.startActivity(intent)
     }
 
-    fun isAccessibilityServiceEnabled(context: Context): Boolean {
-        val accessibilityEnabled = Settings.Secure.getInt(
-            context.contentResolver,
-            Settings.Secure.ACCESSIBILITY_ENABLED,
-            0
-        )
-        return accessibilityEnabled == 1
-    }
-
-    fun requestAccessibilityService(context: Context) {
-        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-        context.startActivity(intent)
-    }
-
     fun hasInternetPermission(context: Context): Boolean {
         return ContextCompat.checkSelfPermission(
             context,
