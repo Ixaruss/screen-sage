@@ -28,7 +28,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-
 class OverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var preferencesManager: PreferencesManager
@@ -79,6 +78,14 @@ class OverlayService : Service() {
         createNotification()
         overlayManager.createOverlay()
         overlayManager.setAiRepository(aiRepository)
+        
+        // Handle selected text from Process Text action
+        if (intent?.action == "ACTION_PROCESS_TEXT") {
+            val selectedText = intent.getStringExtra("SELECTED_TEXT")
+            if (!selectedText.isNullOrEmpty()) {
+                handleTextSelection(selectedText)
+            }
+        }
         
         // Preload the local model in background if using local provider
         serviceScope.launch {

@@ -14,6 +14,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import androidx.compose.material.icons.filled.Settings
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.AlphaAnimation
 import android.view.inputmethod.EditorInfo
@@ -24,6 +25,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import com.example.screensage.R
 import com.example.screensage.ai.AiRepository
 import com.example.screensage.models.ChatMessage
@@ -35,7 +38,6 @@ import io.noties.markwon.Markwon
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.util.UUID
-
 class OverlayManager(
     private val context: Context,
     private val windowManager: WindowManager,
@@ -57,6 +59,7 @@ class OverlayManager(
     private var hasInitializedAi = false
     private var lastQuery: String? = null
     private var currentMessagesContainer: LinearLayout? = null
+    private var isWaitingForResponse = false  // Track if we're waiting for AI response
     
     // Icon position memory
     private var lastIconX = -1
@@ -435,6 +438,7 @@ class OverlayManager(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
             setPadding(24, 20, 24, 16)
+            elevation = 8f  // Increased elevation so buttons stay above chat bubbles
         }
         
         // Add drag functionality to header
@@ -451,38 +455,61 @@ class OverlayManager(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                rightMargin = 70
+                leftMargin = 0
+                rightMargin = 200  // Make room for buttons
                 gravity = Gravity.CENTER_VERTICAL
                 topMargin = 4
                 bottomMargin = 4
             }
             
-            // Make title clickable to edit, but only on tap (not drag)
-            var titleClickStartX = 0f
-            var titleClickStartY = 0f
-            setOnTouchListener { v, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        titleClickStartX = event.rawX
-                        titleClickStartY = event.rawY
-                        false  // Don't consume, let header drag work
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        val deltaX = Math.abs(event.rawX - titleClickStartX)
-                        val deltaY = Math.abs(event.rawY - titleClickStartY)
-                        // Only trigger edit if it was a tap (not a drag)
-                        if (deltaX < 20 && deltaY < 20) {
-                            showTitleEditDialog()
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                    else -> false
-                }
+            // Make title clickable to edit
+            setOnClickListener {
+                showTitleEditDialog()
             }
         }
-        header.addView(titleText)
+
+        // New Chat button
+        val newChatButton = ImageButton(context).apply {
+            setImageResource(android.R.drawable.ic_input_add)  // Plus icon for new chat
+            layoutParams = FrameLayout.LayoutParams(56, 56).apply {
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                rightMargin = 128 // Position to the left of settings button
+            }
+            setBackground(createRoundedDrawable(0x30000000.toInt(), 28f))
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            setPadding(12, 12, 12, 12)
+            setColorFilter(0xFF000000.toInt())
+            elevation = 4f
+            setOnClickListener {
+                // Start a new chat session
+                startNewChat()
+            }
+        }
+        header.addView(newChatButton)
+
+        // Settings button
+        val settingsButton = ImageButton(context).apply {
+            setImageResource(R.drawable.ic_settings)  // Settings gear icon
+            layoutParams = FrameLayout.LayoutParams(56, 56).apply {
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                rightMargin = 64  // Position to the left of close button
+            }
+            setBackground(createRoundedDrawable(0x30000000.toInt(), 28f))
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            setPadding(12, 12, 12, 12)
+            setColorFilter(0xFF000000.toInt())
+            elevation = 4f
+            setOnClickListener {
+                // Open MainActivity settings directly
+                val intent = android.content.Intent(context, com.example.screensage.MainActivity::class.java)
+                intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or 
+                              android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                              android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+                intent.putExtra("open_settings", true)  // Signal to open settings
+                context.startActivity(intent)
+            }
+        }
+        header.addView(settingsButton)
 
         val closeButton = ImageButton(context).apply {
             setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
@@ -564,6 +591,14 @@ class OverlayManager(
 
         scrollView.addView(messagesContainer)
         container.addView(scrollView)
+        
+        // Restore thinking message if we're waiting for a response
+        if (isWaitingForResponse) {
+            addThinkingMessage(messagesContainer)
+            scrollView.post {
+                scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+            }
+        }
 
         // Input area
         val inputContainer = LinearLayout(context).apply {
@@ -577,7 +612,7 @@ class OverlayManager(
         }
 
         val inputField = EditText(context).apply {
-            hint = "Ask me anything..."
+            hint = "Type your query here.."
             textSize = 15f
             setTextColor(0xFF000000.toInt())
             setHintTextColor(0x80000000.toInt())
@@ -676,30 +711,58 @@ class OverlayManager(
 
         updateState(OverlayState.EXPANDED_IDLE)
         
-        // Show a welcome message for new sessions (like ChatGPT/Claude)
+        // Show centered empty state for new sessions (ChatGPT style)
         if (conversationHistory.isEmpty()) {
-            val welcomeView = TextView(context).apply {
-                text = "👋 Hi! I'm Screen Sage. How can I help you today?"
-                textSize = 14f
-                setTextColor(0xFF666666.toInt())
-                setPadding(16, 12, 16, 12)
-                setBackground(createRoundedDrawable(0xFFF0F0F0.toInt(), 16f))
+            val emptyStateContainer = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    setMargins(0, 8, 64, 8)
-                }
+                    LinearLayout.LayoutParams.MATCH_PARENT
+                )
+                tag = "empty_state_container"
+            }
+            
+            // Logo
+            val emptyStateLogo = ImageView(context).apply {
+                setImageResource(R.drawable.logo_bg_removed)
+                alpha = 0.4f
+                layoutParams = LinearLayout.LayoutParams(180.dpToPx(), 180.dpToPx())
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                contentDescription = "Screen Sage Logo"
+            }
+            emptyStateContainer.addView(emptyStateLogo)
+            
+            // Welcome message
+            val emptyStateMessage = TextView(context).apply {
+                text = getWelcomeMessage()
+                textSize = 18f
+                setTextColor(0xFF666666.toInt())
+                alpha = 0.8f
                 gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
             }
-            messagesContainer.addView(welcomeView)
-            scrollView.post {
-                scrollView.fullScroll(ScrollView.FOCUS_DOWN)
-            }
+            emptyStateContainer.addView(emptyStateMessage)
+            
+            messagesContainer.addView(emptyStateContainer)
         }
+    }
+    
+    // Extension function to convert dp to pixels
+    private fun Int.dpToPx(): Int {
+        return (this * context.resources.displayMetrics.density).toInt()
     }
 
     private fun addUserMessage(container: LinearLayout, message: String) {
+        // Remove empty state container when first message is sent
+        val emptyStateContainer = container.findViewWithTag<LinearLayout>("empty_state_container")
+        if (emptyStateContainer != null) {
+            container.removeView(emptyStateContainer)
+        }
+        
         // Add to conversation history
         addMessageToHistory("user", message)
         
@@ -718,6 +781,51 @@ class OverlayManager(
             }
         }
         container.addView(messageView)
+    }
+
+    private fun addAiMessageStreaming(container: LinearLayout, initialText: String = ""): TextView {
+        // Add to conversation history will be done when complete
+        
+        val messageView = TextView(context).apply {
+            text = initialText
+            textSize = 14f
+            setTextColor(0xFF000000.toInt())
+            setPadding(16, 12, 16, 12)
+            setBackground(createRoundedDrawable(0xFFF0F0F0.toInt(), 16f))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 8, 64, 8)
+            }
+            setTextIsSelectable(true)
+            tag = "streaming_message"
+        }
+        container.addView(messageView)
+        return messageView
+    }
+    
+    private fun updateStreamingMessage(messageView: TextView, text: String) {
+        messageView.post {
+            markwon.setMarkdown(messageView, text)
+        }
+    }
+    
+    private fun finalizeStreamingMessage(messageView: TextView, finalText: String) {
+        messageView.post {
+            markwon.setMarkdown(messageView, finalText)
+            messageView.tag = null
+        }
+        // Add to conversation history
+        addMessageToHistory("assistant", finalText)
+        
+        // Generate title after first exchange completes (user message + AI response)
+        if (conversationHistory.size == 2) {
+            val firstUserMessage = conversationHistory.firstOrNull { it.role == "user" }?.content
+            if (firstUserMessage != null) {
+                generateChatTitle(firstUserMessage)
+            }
+        }
     }
 
     private fun addAiMessage(container: LinearLayout, message: String) {
@@ -757,9 +865,9 @@ class OverlayManager(
             textSize = 14f
             setTextColor(0xFF666666.toInt())
             setPadding(16, 12, 16, 12)
-            setBackground(createRoundedDrawable(0xFFF0F0F0.toInt(), 16f))
+            // No background - just plain text
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 setMargins(0, 8, 64, 8)
@@ -894,26 +1002,114 @@ class OverlayManager(
             }
         }
         
-        // DON'T clear conversation history - keep it so we can restore when reopening
-        // clearConversationHistory()
-
         val screenWidth = context.resources.displayMetrics.widthPixels
         val screenHeight = context.resources.displayMetrics.heightPixels
+        val edgePadding = 16
+        val iconSize = 100
 
-        overlayParams?.apply {
-            // Remember the current position before collapsing
-            lastIconX = x
-            lastIconY = y
+        overlayParams?.let { params ->
+            // Calculate center of current position
+            val centerX = params.x + params.width / 2
+            val centerY = params.y + params.height / 2
             
-            width = 100
-            height = 100
-            gravity = Gravity.TOP or Gravity.START
-            // Keep the same position where it was
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            // Determine which corner is closest
+            val distanceToTopLeft = Math.sqrt(Math.pow(centerX.toDouble(), 2.0) + Math.pow(centerY.toDouble(), 2.0))
+            val distanceToTopRight = Math.sqrt(Math.pow((screenWidth - centerX).toDouble(), 2.0) + Math.pow(centerY.toDouble(), 2.0))
+            val distanceToBottomLeft = Math.sqrt(Math.pow(centerX.toDouble(), 2.0) + Math.pow((screenHeight - centerY).toDouble(), 2.0))
+            val distanceToBottomRight = Math.sqrt(Math.pow((screenWidth - centerX).toDouble(), 2.0) + Math.pow((screenHeight - centerY).toDouble(), 2.0))
+            
+            // Find minimum distance
+            val minDistance = minOf(distanceToTopLeft, distanceToTopRight, distanceToBottomLeft, distanceToBottomRight)
+            
+            // Snap to closest corner
+            val targetX: Int
+            val targetY: Int
+            
+            when (minDistance) {
+                distanceToTopLeft -> {
+                    targetX = edgePadding
+                    targetY = edgePadding
+                    isOnRightSide = false
+                }
+                distanceToTopRight -> {
+                    targetX = screenWidth - iconSize - edgePadding
+                    targetY = edgePadding
+                    isOnRightSide = true
+                }
+                distanceToBottomLeft -> {
+                    targetX = edgePadding
+                    targetY = screenHeight - iconSize - edgePadding
+                    isOnRightSide = false
+                }
+                else -> { // distanceToBottomRight
+                    targetX = screenWidth - iconSize - edgePadding
+                    targetY = screenHeight - iconSize - edgePadding
+                    isOnRightSide = true
+                }
+            }
+            
+            // Store target position
+            lastIconX = targetX
+            lastIconY = targetY
+            
+            // Phase 1: Fade out and shrink the panel
+            val startWidth = params.width
+            val startHeight = params.height
+            val startX = params.x
+            val startY = params.y
+            
+            val shrinkAnimator = ValueAnimator.ofFloat(0f, 1f)
+            shrinkAnimator.duration = 250
+            shrinkAnimator.interpolator = android.view.animation.AccelerateInterpolator()
+            
+            shrinkAnimator.addUpdateListener { animation ->
+                val progress = animation.animatedValue as Float
+                
+                // Fade out
+                overlayView?.alpha = 1f - progress
+                
+                // Shrink to icon size
+                val currentWidth = (startWidth - (startWidth - iconSize) * progress).toInt()
+                val currentHeight = (startHeight - (startHeight - iconSize) * progress).toInt()
+                
+                // Move towards target corner while shrinking
+                val currentX = (startX + (targetX - startX) * progress).toInt()
+                val currentY = (startY + (targetY - startY) * progress).toInt()
+                
+                params.width = currentWidth
+                params.height = currentHeight
+                params.x = currentX
+                params.y = currentY
+                params.gravity = Gravity.TOP or Gravity.START
+                params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                
+                windowManager.updateViewLayout(overlayView, params)
+            }
+            
+            shrinkAnimator.addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    // Phase 2: Update to collapsed state and fade in the icon
+                    overlayView?.alpha = 0f
+                    params.width = iconSize
+                    params.height = iconSize
+                    params.x = targetX
+                    params.y = targetY
+                    windowManager.updateViewLayout(overlayView, params)
+                    
+                    updateCollapsedState()
+                    
+                    // Fade in the icon
+                    val fadeInAnimator = ValueAnimator.ofFloat(0f, 1f)
+                    fadeInAnimator.duration = 150
+                    fadeInAnimator.addUpdateListener { anim ->
+                        overlayView?.alpha = anim.animatedValue as Float
+                    }
+                    fadeInAnimator.start()
+                }
+            })
+            
+            shrinkAnimator.start()
         }
-        windowManager.updateViewLayout(overlayView, overlayParams)
-
-        updateCollapsedState()
     }
 
     private fun submitQuery(query: String, aiRepository: AiRepository, scope: CoroutineScope, messagesContainer: LinearLayout) {
@@ -926,6 +1122,7 @@ class OverlayManager(
         
         // Store the last query for retry
         lastQuery = query
+        isWaitingForResponse = true  // Mark that we're waiting for response
         
         // Add thinking message
         addThinkingMessage(messagesContainer)
@@ -938,33 +1135,90 @@ class OverlayManager(
         scope.launch {
             try {
                 Log.d(TAG, "Submitting query: $query")
-                val result = aiRepository.submitQuery(query, conversationHistory)
-                Log.d(TAG, "Query result: $result")
                 
-                // Remove thinking message
-                val thinkingMsg = messagesContainer.findViewWithTag<TextView>("thinking_message")
-                if (thinkingMsg != null) {
-                    messagesContainer.removeView(thinkingMsg)
-                }
-                
-                result.onSuccess { response ->
-                    Log.d(TAG, "Query successful: ${response.explanation}")
-                    addAiMessage(messagesContainer, response.explanation)
-                    updateState(OverlayState.EXPANDED_RESPONSE)
-                    scrollView?.post {
-                        scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                // Check if using local provider for streaming simulation
+                val provider = preferencesManager.getProvider()
+                if (provider.lowercase() == "local") {
+                    // Keep thinking message while waiting for response
+                    val result = aiRepository.submitQuery(query, conversationHistory)
+                    
+                    result.onSuccess { response ->
+                        Log.d(TAG, "Query successful: ${response.explanation}")
+                        
+                        // NOW remove thinking message and start streaming
+                        val thinkingMsg = messagesContainer.findViewWithTag<TextView>("thinking_message")
+                        if (thinkingMsg != null) {
+                            messagesContainer.removeView(thinkingMsg)
+                        }
+                        
+                        // Create streaming message view
+                        val streamingView = addAiMessageStreaming(messagesContainer, "")
+                        
+                        // Simulate streaming by showing words progressively
+                        val words = response.explanation.split(" ")
+                        var currentText = ""
+                        
+                        words.forEachIndexed { index, word ->
+                            currentText += if (index == 0) word else " $word"
+                            updateStreamingMessage(streamingView, currentText)
+                            
+                            // Small delay between words for streaming effect
+                            kotlinx.coroutines.delay(30) // 30ms per word
+                            
+                            // Auto-scroll as text appears
+                            scrollView?.post {
+                                scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                            }
+                        }
+                        
+                        // Finalize the message
+                        finalizeStreamingMessage(streamingView, response.explanation)
+                        isWaitingForResponse = false  // Clear waiting flag
+                        updateState(OverlayState.EXPANDED_RESPONSE)
+                    }.onFailure { exception ->
+                        Log.e(TAG, "Query failed", exception)
+                        isWaitingForResponse = false  // Clear waiting flag
+                        // Remove thinking message on error
+                        val thinkingMsg = messagesContainer.findViewWithTag<TextView>("thinking_message")
+                        if (thinkingMsg != null) {
+                            messagesContainer.removeView(thinkingMsg)
+                        }
+                        val errorMsg = aiRepository.handleError(exception as Exception)
+                        addErrorMessage(messagesContainer, errorMsg.title, errorMsg.message, errorMsg.isRetryable)
+                        updateState(OverlayState.EXPANDED_ERROR)
                     }
-                }.onFailure { exception ->
-                    Log.e(TAG, "Query failed", exception)
-                    val errorMsg = aiRepository.handleError(exception as Exception)
-                    addErrorMessage(messagesContainer, errorMsg.title, errorMsg.message, errorMsg.isRetryable)
-                    updateState(OverlayState.EXPANDED_ERROR)
-                    scrollView?.post {
-                        scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                } else {
+                    // Cloud providers - no streaming simulation
+                    val result = aiRepository.submitQuery(query, conversationHistory)
+                    
+                    // Remove thinking message
+                    val thinkingMsg = messagesContainer.findViewWithTag<TextView>("thinking_message")
+                    if (thinkingMsg != null) {
+                        messagesContainer.removeView(thinkingMsg)
+                    }
+                    
+                    result.onSuccess { response ->
+                        Log.d(TAG, "Query successful: ${response.explanation}")
+                        addAiMessage(messagesContainer, response.explanation)
+                        isWaitingForResponse = false  // Clear waiting flag
+                        updateState(OverlayState.EXPANDED_RESPONSE)
+                        scrollView?.post {
+                            scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                        }
+                    }.onFailure { exception ->
+                        Log.e(TAG, "Query failed", exception)
+                        isWaitingForResponse = false  // Clear waiting flag
+                        val errorMsg = aiRepository.handleError(exception as Exception)
+                        addErrorMessage(messagesContainer, errorMsg.title, errorMsg.message, errorMsg.isRetryable)
+                        updateState(OverlayState.EXPANDED_ERROR)
+                        scrollView?.post {
+                            scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                        }
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Unexpected error in submitQuery", e)
+                isWaitingForResponse = false  // Clear waiting flag
                 val thinkingMsg = messagesContainer.findViewWithTag<TextView>("thinking_message")
                 if (thinkingMsg != null) {
                     messagesContainer.removeView(thinkingMsg)
@@ -985,16 +1239,23 @@ class OverlayManager(
 
     fun handleTextSelection(text: String, aiRepository: AiRepository, scope: CoroutineScope) {
         this.aiRepository = aiRepository
+        
+        // Expand overlay if collapsed
         if (currentState == OverlayState.COLLAPSED) {
             expandOverlay()
         }
-        updateState(OverlayState.EXPANDED_LOADING)
-        scope.launch {
-            val result = aiRepository.explainText(text)
-            result.onSuccess { response ->
-                updateState(OverlayState.EXPANDED_RESPONSE)
-            }.onFailure { exception ->
-                updateState(OverlayState.EXPANDED_ERROR)
+        
+        // Get the messages container
+        val messagesContainer = currentMessagesContainer
+        if (messagesContainer != null) {
+            // Add the formatted query as a user message and submit it
+            addUserMessage(messagesContainer, text)
+            submitQuery(text, aiRepository, scope, messagesContainer)
+            
+            // Auto-scroll to show the new message
+            val scrollView = messagesContainer.parent as? ScrollView
+            scrollView?.post {
+                scrollView.fullScroll(ScrollView.FOCUS_DOWN)
             }
         }
     }
@@ -1182,12 +1443,101 @@ class OverlayManager(
                 val result = aiRepository?.submitQuery(titlePrompt, emptyList())
                 
                 result?.onSuccess { response ->
-                    val title = response.explanation.trim().take(50) // Limit to 50 chars
+                    // Remove all newlines, carriage returns, and extra whitespace, limit to 50 chars
+                    val title = response.explanation
+                        .replace(Regex("[\\r\\n]+"), " ")  // Replace all newlines/carriage returns with space
+                        .trim()  // Trim leading/trailing whitespace
+                        .replace(Regex("\\s+"), " ")  // Replace multiple spaces with single space
+                        .take(50)
                     currentSession = currentSession?.copy(title = title)
                 }
             } catch (e: Exception) {
                 // If title generation fails, keep default title
                 e.printStackTrace()
+            }
+        }
+    }
+    
+    private fun getWelcomeMessage(): String {
+        val calendar = java.util.Calendar.getInstance()
+        val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+        
+        // 70% time-based, 30% casual
+        val useTimeBased = kotlin.random.Random.nextInt(100) < 70
+        
+        return if (useTimeBased) {
+            getTimeBasedMessage(hour)
+        } else {
+            getCasualMessage()
+        }
+    }
+    
+    private fun getTimeBasedMessage(hour: Int): String {
+        val messages = when (hour) {
+            in 5..11 -> listOf(
+                "Good morning! What can I help you with?",
+                "Morning! How can I assist you today?",
+                "Good morning! What's on your agenda?"
+            )
+            in 12..16 -> listOf(
+                "Good afternoon! How can I assist you?",
+                "Afternoon! What can I help you with?",
+                "Good afternoon! What are you working on?"
+            )
+            in 17..20 -> listOf(
+                "Good evening! What's on your mind?",
+                "Evening! How can I help you?",
+                "Good evening! What can I assist with?"
+            )
+            else -> listOf(
+                "What's new tonight?",
+                "Still up? What can I help with?",
+                "Late night thoughts? I'm here to help.",
+                "What's keeping you up?"
+            )
+        }
+        return messages.random()
+    }
+    
+    private fun getCasualMessage(): String {
+        val messages = listOf(
+            "What's on your mind?",
+            "How can I help you today?",
+            "What would you like to know?",
+            "I'm here to help. What do you need?",
+            "What can I do for you?"
+        )
+        return messages.random()
+    }
+    
+    private fun startNewChat() {
+        serviceScope.launch {
+            // Save current session if it has messages
+            if (conversationHistory.isNotEmpty()) {
+                currentSession?.let { session ->
+                    val sessionToSave = session.copy(
+                        messages = conversationHistory.toMutableList(),
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    try {
+                        chatHistoryManager.saveSession(sessionToSave)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to save session", e)
+                        // Continue with new chat creation
+                    }
+                }
+            }
+            
+            // Reset chat state on main thread
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                conversationHistory.clear()
+                startNewSession()
+                isWaitingForResponse = false
+                
+                // Refresh the overlay to show empty state
+                if (currentState != OverlayState.COLLAPSED) {
+                    expandOverlay()
+                }
             }
         }
     }
