@@ -1791,7 +1791,7 @@ fun HomeScreen(
         
 
         
-        Spacer(modifier = Modifier.height(96.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         
         // Quote of the Day
         QuoteOfTheDay()
