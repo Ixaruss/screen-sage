@@ -17,6 +17,26 @@
 
 Screen Sage is an intelligent Android accessibility app that brings AI assistance directly to your screen. With a floating chat overlay, you can get instant explanations, answers, and insights about anything on your device - all while maintaining your privacy with on-device AI processing.
 
+## ScreenShots
+<div>
+<h2>home screen & history</h2>
+
+<p >
+  <img src="https://github.com/user-attachments/assets/a9418d22-93fa-48e3-b336-b44b1767e81b" height="500">
+  <img src="https://github.com/user-attachments/assets/4945af23-80fd-48fb-b355-64266d8e2e1a" height="500">
+</p>
+
+</div>
+
+<div>
+<p align="center">
+<h2>Widget</h2>
+<img src="https://github.com/user-attachments/assets/8d7a9a8e-aa33-4cbd-b1e4-d3df6d1c495b" height="200">
+</p>
+
+</div>
+
+
 ## Features
 
 ### 🎯 Core Capabilities
@@ -25,31 +45,37 @@ Screen Sage is an intelligent Android accessibility app that brings AI assistanc
 - **On-Device AI** - Privacy-first local model (Gemma3-1B) runs entirely on your device - no internet required
 - **Cloud AI Support** - Optional integration with Gemini, ChatGPT, and Claude for faster responses
 - **Text Selection Assistant** - Select text in any app and get instant AI explanations
-- **Conversation History** - Persistent chat sessions with automatic title generation
-- **Customizable Themes** - Choose from multiple color schemes (Pink, Blue, Purple, Green)
+- **Conversation History** - Persistent chat sessions with automatic title generation and quick resume
+- **Customizable Themes** - Choose from multiple color schemes (Pink, Blue, Purple, Green) and light/dark modes
+- **Home Screen Widget** - Quick toggle for overlay activation directly from your home screen
+
+### 🎨 Modern UI/UX (v1.2)
+
+- **Material Design 3** - Modern segmented buttons and radio groups for intuitive settings
+- **Smooth Navigation** - Swipe between tabs with fast 250ms animations
+- **Animated Feedback** - Visual confirmation for save operations with loading → success states
+- **Glass UI Design** - Beautiful frosted glass effects throughout the overlay interface
+- **Quote of the Day** - Inspirational quotes on the home screen
+- **Enhanced Empty States** - Time-based welcome messages and centered branding
 
 ### 🔒 Privacy & Performance
 
 - **100% Private** - Local model keeps your data on your device
 - **Offline Capable** - Works without internet when using local AI
-- **Optimized Performance** - Efficient model loading and caching for fast responses
+- **Optimized Performance** - Background image caching and efficient model loading for fast responses
 - **Low Memory Footprint** - ~1.5GB RAM usage with local model
+- **Stable Input** - Debounced requests prevent crashes during rapid typing
 
 ### 🎨 User Experience
 
 - **Intuitive Interface** - Clean, modern chat UI with markdown support
 - **Smart Positioning** - Overlay snaps to screen edges and remembers position
-- **Gesture Controls** - Drag to move, throw to dismiss, tap to expand
+- **Gesture Controls** - Drag to move, throw to dismiss, tap to expand, swipe to navigate
 - **Accessibility First** - Built with Android accessibility services for seamless integration
+- **Widget Sync** - Power button state synchronized between app and widget
 
 
 ## Installation
-
-### Requirements
-
-- Android 8.0 (API 26) or higher
-- 4GB RAM minimum (for local AI model)
-- ~700MB storage space (for local model download)
 
 ### Download
 
@@ -79,7 +105,6 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 Screen Sage requires two permissions to function:
 
 - **Display over other apps** - For the floating chat overlay
-- **Accessibility Service** - To detect text selection in other apps
 
 ### 2. Choose AI Provider
 
@@ -103,106 +128,10 @@ Navigate to Settings and select your preferred AI provider:
 3. Select text in any app for instant explanations
 4. Drag the overlay to reposition it
 
-## Usage
-
-### Chat Interface
-
-- **Expand** - Tap the floating icon
-- **Move** - Drag the header or icon
-- **Dismiss** - Throw the overlay off-screen or tap outside
-- **Send Message** - Type and tap the send button
-
-### Text Selection
-
-1. Select text in any app
-2. Screen Sage automatically opens with the selected text
-3. Get instant AI explanations
-
-### Conversation Management
-
-- Conversations are automatically saved
-- Tap the chat title to rename
-- Access history from the main app
-
-## Configuration
-
-### Settings Options
-
-- **AI Provider** - Choose between Local, Gemini, ChatGPT, or Claude
-- **API Key** - Enter your cloud provider API key
-- **Model Selection** - Choose specific model versions
-- **System Prompt** - Customize AI behavior
-- **Theme Color** - Select overlay color scheme
-- **Model Management** - Download, update, or delete local model
-
-## Technical Details
-
-### Architecture
-
-- **Language**: Kotlin
-- **UI Framework**: Android Views with Material Design
-- **AI Integration**: MediaPipe LLM Inference (local), Retrofit (cloud APIs)
-- **Async Processing**: Kotlin Coroutines
-- **Storage**: SharedPreferences, JSON file storage
-- **Markdown Rendering**: Markwon library
-
-### Local Model
-
-- **Model**: Gemma3-1B (Instruction-Tuned)
-- **Quantization**: 4-bit block quantization
-- **Size**: 676MB
-- **Max Tokens**: 512
-- **Context Window**: 128 tokens
-- **Inference Engine**: TensorFlow Lite with XNNPACK
-
-### Performance Optimizations
-
-- Model preloading on service start
-- Request debouncing and mutex locks
-- Conversation history limiting (last 3 messages)
-- Efficient memory management
-
-## Troubleshooting
-
-### Common Issues
-
-**Overlay not showing**
-- Ensure "Display over other apps" permission is granted
-- Restart the app
-
-**Text selection not working**
-- Enable Accessibility Service in system settings
-- Grant accessibility permissions
-
-**Local model slow**
-- First response is always slower (model loading)
-- Subsequent responses are faster
-- Consider using cloud AI for speed
-
-**App crashes on typing**
-- Update to latest version (fixed in v1.1.0)
-- Clear app cache and restart
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- **Gemma3** - Google's open-source language model
-- **MediaPipe** - Google's ML framework for on-device inference
-- **Markwon** - Markdown rendering library
-- **Material Design** - UI/UX guidelines t
 
 ---
 
