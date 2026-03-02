@@ -29,12 +29,12 @@ class LocalModelManager(private val context: Context) {
         private const val TAG = "LocalModelManager"
         private const val MODEL_NAME = "Gemma3-1B-IT_seq128_q4_block128_ekv4096.task"
         // Direct download from GitHub Release
-        private const val MODEL_URL = "https://github.com/Ixaruss/Screen-Sage/releases/download/android/Gemma3-1B-IT_seq128_q4_block128_ekv4096.task"
+        private const val MODEL_URL = "https://github.com/Ixaruss/screen-sage/releases/download/1.0.0/Gemma3-1B-IT_seq128_q4_block128_ekv4096.task"
         
         // Resource requirements (updated for smaller Gemma3-1B model)
-        const val MODEL_SIZE_MB = 676L  // 676 MB (much smaller than 2GB!)
+        const val MODEL_SIZE_MB = 676L  // 676 MB
         const val REQUIRED_RAM_MB = 4096L  // 4GB minimum
-        const val ESTIMATED_RAM_USAGE_MB = 1500L  // ~1.5GB when loaded (less than Gemma-2B)
+        const val ESTIMATED_RAM_USAGE_MB = 1500L
     }
     
     /**
